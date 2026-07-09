@@ -381,6 +381,85 @@
             l.href = canvas.toDataURL('image/jpeg', 0.95); 
             l.click(); 
         }
+        /* ==========================================
+   📱 手機與平版裝置專用優化 (RWD 響應式調整)
+   ========================================== */
+@media screen and (max-width: 600px) {
+    /* 1. 調整第一步的主面板寬度，改為百分比以適應各種手機螢幕 */
+    #ui-panel {
+        width: 90vw;          /* 寬度改為螢幕寬度的 90% */
+        max-width: 380px;     /* 最大不超過 380px */
+        padding: 30px 20px;   /* 縮小內邊距，留給文字更多空間 */
+        border-radius: 20px;
+    }
+
+    h1 {
+        font-size: 1.3rem;    /* 稍微縮小標題，避免手機上換行太突兀 */
+    }
+
+    p {
+        font-size: 0.8rem;
+        margin-bottom: 20px;
+    }
+
+    /* 2. 調整第二步加載畫面的文字面板 */
+    .loading-content {
+        width: 90vw;
+        max-width: 400px;
+        padding: 25px 20px;
+    }
+
+    .loading-text {
+        font-size: 1rem;
+    }
+
+    .carbon-numbers {
+        font-size: 1rem;
+    }
+    
+    .carbon-numbers span {
+        font-size: 1.2rem;
+    }
+
+    .loading-subtext {
+        font-size: 0.8rem;    /* 讓手機上的環保案例數據排列更緊湊 */
+        line-height: 1.6;
+    }
+
+    /* 3. 調整第三步完成後的 Slogan 位置與字型大小 */
+    #slogan-container {
+        bottom: 16%;          /* 往上調一點，避免被手機瀏覽器的工具列擋住 */
+        width: 90vw;
+    }
+
+    .slogan-line1 {
+        font-size: 1.05rem;   /* 縮小字體，確保手機上一行能寫完不中斷 */
+        letter-spacing: 1.5px;
+        margin-bottom: 8px;
+    }
+
+    .slogan-line2 {
+        font-size: 0.8rem;
+        letter-spacing: 3px;
+    }
+
+    /* 4. 調整右下角的控制按鈕，縮小尺寸並改為置底置中，更方便手指點擊 */
+    #view-controls {
+        bottom: 4%;
+        left: 50%;
+        right: auto;
+        transform: translateX(-50%); /* 置中對齊 */
+        width: 90vw;
+        justify-content: center;
+    }
+
+    .control-btn {
+        padding: 10px 18px;    /* 稍微縮小按鈕尺寸 */
+        font-size: 0.75rem;
+        flex: 1;               /* 讓兩個按鈕在手機上平分寬度 */
+        text-align: center;
+    }
+}
     </script>
 </body>
 </html>
