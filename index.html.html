@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Archive of Oblivion | 記憶解放</title>
+    <style>
+        :root {
+            --accent-green: #27ae60;
+            --accent-white: #f5f5f7;
+            --accent-gray: #86868b;
+            --glass-bg: rgba(10, 11, 18, 0.95);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            background: #000; color: var(--accent-white);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            overflow: hidden; height: 100vh; display: flex; align-items: center; justify-content: center;
+            user-select: none;
+        }
+
+        /* 步驟1：背景數位雜訊 */
+        #noise-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; opacity: 0.15; }
+        
+        #main-container { position: relative; width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; z-index: 2; }
+
+        /* 步驟1：主面板 (完美置中) */
+        #ui-panel {
+            position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 460px;
+            background: var(--glass-bg); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1); padding: 40px 35px; border-radius: 24px;
+            box-shadow: 0 40px 80px rgba(0,0,0,0.9); transition: all 0.5s ease; z-index: 10;
+            text-align: center;
+        }
+
+        .status-dot { font-size: 0.75rem; text-transform: uppercase; color: var(--accent-gray); margin-bottom: 20px; letter-spacing: 0.2em; display: flex; align-items: center; justify-content: center; }
+        .status-dot::before { content: ""; display: inline-block; width: 8px; height: 8px; background: #e74c3c; border-radius: 50%; margin-right: 10px; box-shadow: 0 0 10px #e74c3c; }
+        .status-dot.active::before { background: var(--accent-green); box-shadow: 0 0 10px var(--accent-green); }
+
+        h1 { font-size: 1.6rem; margin-bottom: 15px; letter-spacing: 2px; }
+        p { font-size: 0.85rem; color: var(--accent-gray); line-height: 1.7; margin-bottom: 30px; }
+
+        .upload-label { display: block; width: 100%; text-align: center; background: #1a1a24; color: #fff; border: 1px solid rgba(255,255,255,0.2); padding: 14px; border-radius: 12px; font-size: 0.85rem; cursor: pointer; transition: 0.3s; }
+        .upload-label:hover { background: #2a2a35; border-color: #fff; }
+        .upload-label.disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; border-style: dashed; filter: grayscale(100%); }
+        input[type="file"] { display: none; }
+
+        /* 步驟2：加載與坍縮動畫 */
+        #loading-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 50; opacity: 0; pointer-events: none; transition: opacity 0.4s ease; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; }
+        #loading-screen.show { opacity: 1; pointer-events: auto; }
+        #warp-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 51; }
+        
+        .loading-content { z-index: 52; text-align: center; width: 520px; background: rgba(5,6,10,0.85); padding: 35px 40px; border-radius: 20px; border: 1px solid rgba(39, 174, 96, 0.3); box-shadow: 0 0 30px rgba(39,174,96,0.2); backdrop-filter: blur(10px); }
+        .loading-text { font-size: 1.1rem; margin-bottom: 10px; font-weight: bold; letter-spacing: 2px; color: #fff; text-shadow: 0 0 10px rgba(255,255,255,0.5); }
+        
+        .carbon-numbers { font-size: 1.2rem; color: #fff; margin: 15px 0; font-family: monospace; display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 15px;}
+        .carbon-numbers span { color: var(--accent-green); font-weight: bold; font-size: 1.4rem; text-shadow: 0 0 10px var(--accent-green); }
+        
+        .loading-subtext { font-size: 0.9rem; color: #ccc; margin-bottom: 25px; line-height: 1.8; text-align: left; }
+        .loading-subtext strong { color: #fff; }
+        
+        .progress-bar-bg { width: 100%; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; }
+        .progress-bar-fill { height: 100%; width: 0%; background: var(--accent-green); box-shadow: 0 0 15px var(--accent-green); transition: width 0.1s; }
+
+        /* 步驟3：畫布、Slogan與控制區 */
+        #stage-container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        canvas#artCanvas { max-width: 85vh; max-height: 85vh; aspect-ratio: 1/1; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.9); background: #000; transition: opacity 0.5s, transform 1.5s cubic-bezier(0.25, 1, 0.5, 1); opacity: 0; transform-origin: center; will-change: transform; }
+        
+        #slogan-container {
+            position: absolute; bottom: 12%; left: 50%; transform: translateX(-50%);
+            text-align: center; z-index: 10; opacity: 0; pointer-events: none;
+            transition: opacity 2.0s ease-in-out 0.5s; 
+        }
+        #slogan-container.show { opacity: 1; }
+        .slogan-line1 { font-size: 1.25rem; color: var(--accent-white); font-weight: 300; margin-bottom: 10px; letter-spacing: 3px; text-shadow: 0 0 12px rgba(255,255,255,0.4); }
+        .slogan-line2 { font-size: 0.9rem; color: var(--accent-gray); letter-spacing: 5px; text-transform: uppercase; }
+
+        #view-controls { position: absolute; bottom: 4%; right: 4%; z-index: 10; opacity: 0; transition: 0.5s; display: flex; gap: 12px; }
+        #view-controls.show { opacity: 1; }
+        .control-btn { background: var(--glass-bg); border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 12px 24px; border-radius: 30px; cursor: pointer; font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+
+    <canvas id="noise-canvas"></canvas>
+
+    <div id="loading-screen">
+        <canvas id="warp-canvas"></canvas>
+        <div class="loading-content">
+            <div class="loading-text">ABSORBING MEMORIES...</div>
+            <div class="carbon-numbers">
+                <div>釋放空間：<br><span id="val-mb">0.0</span> MB</div>
+                <div>減少碳排：<br><span id="val-kg">0.00</span> kg</div>
+            </div>
+            <div class="loading-subtext" id="loading-metrics">
+                這份對記憶的斷捨離，正化為實質的溫柔：<br>
+                🌱 相當於免去了 <strong>0.0</strong> 個塑膠袋的製造<br>
+                📱 節省了 <strong>0</strong> 支手機從零充到飽的能源<br>
+                💡 並點亮一盞燈 <strong>0</strong> 個小時
+            </div>
+            <div class="progress-bar-bg"><div class="progress-bar-fill" id="progress-fill"></div></div>
+        </div>
+    </div>
+
+    <div id="main-container">
+        <div id="ui-panel">
+            <div class="status-dot" id="system-dot">Initializing...</div>
+            <h1>記憶升級回收</h1>
+            <p>本地終端機處於待命狀態。請傾倒您設備中廢棄的相片數據，演算法將為您釋放空間並編織永續紀念碑。</p>
+            
+            <div class="upload-section">
+                <label for="photos-input" class="upload-label disabled" id="photos-label">
+                    ⏳ 正在加載核心引擎...
+                </label>
+                <input type="file" id="photos-input" accept="image/*" multiple disabled>
+            </div>
+        </div>
+
+        <div id="slogan-container">
+            <div class="slogan-line1">讓被遺忘的過去，凝結成未來的養分。</div>
+            <div class="slogan-line2">是時候解放他們了</div>
+        </div>
+
+        <div id="view-controls">
+            <button class="control-btn" onclick="resetView()">🔎 重置視角</button>
+            <button class="control-btn" style="border-color: var(--accent-green);" onclick="downloadArt()">💾 保存紀念碑</button>
+        </div>
+
+        <div id="stage-container"><canvas id="artCanvas"></canvas></div>
+    </div>
+
+    <script>
+        // --- 1. 背景雜訊渲染 ---
+        const noiseCanvas = document.getElementById('noise-canvas');
+        const noiseCtx = noiseCanvas.getContext('2d');
+        function resizeNoise() { noiseCanvas.width = window.innerWidth; noiseCanvas.height = window.innerHeight; }
+        window.addEventListener('resize', resizeNoise); resizeNoise();
+
+        function renderNoise() {
+            const w = noiseCanvas.width, h = noiseCanvas.height;
+            const idata = noiseCtx.createImageData(w, h);
+            const buffer = new Uint32Array(idata.data.buffer);
+            for (let i = 0; i < buffer.length; i++) { buffer[i] = (Math.random() < 0.5) ? 0xff000000 : 0xffffffff; }
+            noiseCtx.putImageData(idata, 0, 0);
+            requestAnimationFrame(renderNoise); 
+        }
+        renderNoise();
+
+        // --- 2. 核心變數與大圖自動載入 ---
+        const GRID_COUNT = 64; 
+        let targetImage = null, userImages = [];
+        const canvas = document.getElementById('artCanvas'); 
+        const ctx = canvas.getContext('2d');
+        canvas.width = 1500; canvas.height = 1500;
+
+        window.addEventListener('DOMContentLoaded', () => {
+            targetImage = new Image();
+            targetImage.onload = () => {
+                const photoLabel = document.getElementById('photos-label');
+                photoLabel.classList.remove('disabled');
+                photoLabel.innerHTML = "📂 點此傾倒相片數據";
+                photoLabel.style.background = "rgba(39, 174, 96, 0.05)";
+                photoLabel.style.borderColor = "var(--accent-green)";
+                photoLabel.style.color = "var(--accent-green)";
+                
+                document.getElementById('photos-input').disabled = false;
+                document.getElementById('system-dot').innerText = "Awaiting Dump";
+                document.getElementById('system-dot').classList.add('active');
+            };
+            targetImage.onerror = () => {
+                document.getElementById('photos-label').innerHTML = "⚠️ 找不到 sandglass.jpg，請確認檔案位置";
+            };
+            // 💡 確保此路徑與妳的最終大圖檔名一致
+            targetImage.src = 'sandglass.jpg'; 
+        });
+
+        // --- 3. 坍縮動畫系統 ---
+        const warpCanvas = document.getElementById('warp-canvas');
+        const warpCtx = warpCanvas.getContext('2d');
+        let warpStars = [];
+        function initWarp() {
+            warpCanvas.width = window.innerWidth; warpCanvas.height = window.innerHeight;
+            warpStars = [];
+            for(let i=0; i<400; i++) {
+                warpStars.push({
+                    x: (Math.random() - 0.5) * warpCanvas.width * 2,
+                    y: (Math.random() - 0.5) * warpCanvas.height * 2,
+                    z: Math.random() * 2000
+                });
+            }
+        }
+        function drawWarp() {
+            if(!document.getElementById('loading-screen').classList.contains('show')) return;
+            warpCtx.fillStyle = 'rgba(0, 0, 0, 0.2)'; 
+            warpCtx.fillRect(0, 0, warpCanvas.width, warpCanvas.height);
+            const cx = warpCanvas.width / 2; const cy = warpCanvas.height / 2;
+            
+            warpStars.forEach(star => {
+                star.z += 15;
+                if(star.z >= 2000) { 
+                    star.z = 1; 
+                    star.x = (Math.random() - 0.5) * warpCanvas.width * 2; 
+                    star.y = (Math.random() - 0.5) * warpCanvas.height * 2; 
+                }
+                const sx = (star.x / star.z) * 800 + cx; 
+                const sy = (star.y / star.z) * 800 + cy;
+                const size = Math.max(0.2, (1 - star.z / 2000) * 3);
+                
+                warpCtx.fillStyle = (Math.random()>0.85)? '#27ae60' : '#ffffff';
+                warpCtx.beginPath(); warpCtx.arc(sx, sy, size, 0, Math.PI*2); warpCtx.fill();
+            });
+            requestAnimationFrame(drawWarp);
+        }
+
+        // --- 4. 照片處理與碳排計算引擎 ---
+        document.getElementById('photos-input').addEventListener('change', async function(e) {
+            const files = Array.from(e.target.files); if (files.length === 0) return;
+            
+            document.getElementById('loading-screen').classList.add('show');
+            initWarp(); drawWarp(); 
+
+            const fill = document.getElementById('progress-fill');
+            const valMB = document.getElementById('val-mb');
+            const valKG = document.getElementById('val-kg');
+            const metricsText = document.getElementById('loading-metrics');
+            
+            const totalFiles = files.length;
+            let processedCount = 0;
+
+            for (let i = 0; i < totalFiles; i++) {
+                await new Promise(resolve => {
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                        const img = new Image();
+                        img.onload = () => {
+                            const c = document.createElement('canvas');
+                            c.width = 64; c.height = 64; 
+                            const cx = c.getContext('2d');
+                            cx.drawImage(img, 0, 0, 64, 64);
+                            
+                            const d = cx.getImageData(0,0,64,64).data;
+                            let r=0, g=0, b=0, cnt=0;
+                            for(let j=0; j<d.length; j+=4) { r+=d[j]; g+=d[j+1]; b+=d[j+2]; cnt++; }
+                            const avgBright = (r/cnt + g/cnt + b/cnt) / 3;
+
+                            const tinyImg = new Image();
+                            tinyImg.onload = () => {
+                                userImages.push({ img: tinyImg, bright: avgBright });
+                                resolve();
+                            };
+                            tinyImg.src = c.toDataURL('image/jpeg', 0.7); 
+                        };
+                        img.src = ev.target.result;
+                    };
+                    reader.readAsDataURL(files[i]);
+                });
+
+                // 讓出主執行緒，確保動畫流暢
+                await new Promise(r => setTimeout(r, 0));
+                processedCount++;
+                
+                let currentMB = processedCount * 4.2;
+                let currentKG = (currentMB * 0.0085);
+                let progress = (processedCount / totalFiles) * 100;
+                fill.style.width = progress + "%";
+                
+                valMB.innerText = currentMB.toFixed(1);
+                valKG.innerText = currentKG.toFixed(2);
+
+                let plasticBags = (currentKG / 0.033).toFixed(1);
+                let phones = Math.floor(currentKG / 0.008);
+                let bulbs = Math.floor(currentKG / 0.01);
+
+                metricsText.innerHTML = `
+                    這份對記憶的斷捨離，正化為實質的溫柔：<br>
+                    🌱 相當於免去了 <strong>${plasticBags}</strong> 個塑膠袋的製造<br>
+                    📱 節省了 <strong>${phones}</strong> 支手機從零充到飽的能源<br>
+                    💡 並點亮一盞燈 <strong>${bulbs}</strong> 個小時
+                `;
+            }
+            metricsText.innerHTML = `<span style="color:var(--accent-green); font-weight:bold; font-size:1.1rem;">提煉完畢，開始影像重組...</span>`;
+            setTimeout(startWeaving, 600);
+        });
+
+        // --- 5. 拼貼重組與最終展示 ---
+        function startWeaving() {
+            const tCanvas = document.createElement('canvas'); tCanvas.width = canvas.width; tCanvas.height = canvas.height;
+            const tCtx = tCanvas.getContext('2d');
+            
+            tCtx.fillStyle = "#ffffff"; tCtx.fillRect(0,0,canvas.width,canvas.height);
+            const scaleFactor = Math.max(canvas.width / targetImage.width, canvas.height / targetImage.height);
+            const w = targetImage.width * scaleFactor; const h = targetImage.height * scaleFactor;
+            const offsetX_img = (canvas.width - w) / 2; const offsetY_img = (canvas.height - h) / 2;
+            tCtx.drawImage(targetImage, offsetX_img, offsetY_img, w, h);
+            
+            const targetData = tCtx.getImageData(0, 0, canvas.width, canvas.height).data;
+            ctx.fillStyle = '#050505'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            scale = 0.8; updateTransform(); // 初始放大視角
+            canvas.style.opacity = "1";
+
+            const cellW = canvas.width / GRID_COUNT;
+            let row = 0;
+
+            function drawRow() {
+                if (row < GRID_COUNT) {
+                    for (let col = 0; col < GRID_COUNT; col++) {
+                        let x = col * cellW; let y = row * cellW;
+                        let pixelX = Math.floor(x + cellW / 2);
+                        let pixelY = Math.floor(y + cellW / 2);
+                        let idx = (pixelY * canvas.width + pixelX) * 4;
+                        
+                        let tr = targetData[idx], tg = targetData[idx+1], tb = targetData[idx+2];
+                        let targetBright = (tr + tg + tb) / 3;
+
+                        let bestMatchImg = userImages[0].img; let minD = Infinity;
+                        for(let i=0; i<userImages.length; i++) {
+                            let d = Math.abs(userImages[i].bright - targetBright);
+                            if (d < minD) { minD = d; bestMatchImg = userImages[i].img; }
+                        }
+
+                        ctx.drawImage(bestMatchImg, x, y, cellW, cellW);
+                        
+                        ctx.save(); 
+                        ctx.fillStyle = `rgba(${tr}, ${tg}, ${tb}, 0.45)`; 
+                        ctx.fillRect(x, y, cellW, cellW); 
+                        ctx.restore();
+                    }
+                    row++;
+                    requestAnimationFrame(drawRow);
+                } else {
+                    document.getElementById('loading-screen').classList.remove('show');
+                    document.getElementById('ui-panel').style.opacity = "0";
+                    document.getElementById('ui-panel').style.pointerEvents = "none";
+                    
+                    // 動畫拉遠視角，展示全貌
+                    scale = 0.45; offsetX = 0; offsetY = 0; updateTransform();
+                    
+                    // 顯示 Slogan 與按鈕
+                    document.getElementById('slogan-container').classList.add('show');
+                    document.getElementById('view-controls').classList.add('show');
+                }
+            }
+            drawRow();
+        }
+
+        // --- 6. 互動視角控制 ---
+        let scale = 0.45, offsetX = 0, offsetY = 0, isDragging = false, startX, startY;
+        const stageContainer = document.getElementById('stage-container');
+        function updateTransform() { canvas.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`; }
+        
+        stageContainer.addEventListener('wheel', e => { 
+            e.preventDefault(); 
+            scale += (e.deltaY < 0 ? 0.1 : -0.1) * scale; 
+            scale = Math.max(0.1, Math.min(8.0, scale)); 
+            updateTransform(); 
+        }, {passive: false});
+        
+        stageContainer.addEventListener('mousedown', e => { 
+            isDragging = true; 
+            startX = e.clientX - offsetX; 
+            startY = e.clientY - offsetY; 
+        });
+        
+        window.addEventListener('mousemove', e => { 
+            if(isDragging){ 
+                offsetX = e.clientX - startX; 
+                offsetY = e.clientY - startY; 
+                updateTransform(); 
+            } 
+        });
+        
+        window.addEventListener('mouseup', () => isDragging = false);
+        
+        function resetView() { scale = 0.45; offsetX = 0; offsetY = 0; updateTransform(); }
+        function downloadArt() { 
+            const l = document.createElement('a'); 
+            l.download = 'monument.jpg'; 
+            l.href = canvas.toDataURL('image/jpeg', 0.95); 
+            l.click(); 
+        }
+    </script>
+</body>
+</html>
